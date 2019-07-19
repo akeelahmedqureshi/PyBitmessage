@@ -1,20 +1,15 @@
-from pythonforandroid.toolchain import Recipe, shprint, shutil, current_directory
+from pythonforandroid.toolchain import Recipe, shprint, current_directory
 from os.path import exists, join
-import os
-import sys
 from multiprocessing import cpu_count
 import sh
 
 
 class BitmsghashRecipe(Recipe):
-    # This could also inherit from PythonRecipe etc. if you want to
-    # use their pre-written build processes
+    """This could also inherit from PythonRecipe etc."""
 
+    """If you want to use their pre-written build processes."""
     url = 'https://github.com/surbhicis/bitmsghash/archive/master.zip'
-    # {version} will be replaced with self.version when downloading
-
     depends = ['openssl']
-
     conflicts = []
 
     def get_recipe_env(self, arch=None):
