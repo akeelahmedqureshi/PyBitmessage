@@ -1,7 +1,9 @@
-from helper_sql import *
+"""Coding: utf-8 ."""
+from helper_sql import sqlQuery
 
 
 def search_sql(xAddress="toaddress", account=None, folder="inbox", where=None, what=None, unreadOnly=False):
+    """Query for search Data."""
     if what is not None and what != "":
         what = "%" + what + "%"
     else:
@@ -9,7 +11,7 @@ def search_sql(xAddress="toaddress", account=None, folder="inbox", where=None, w
 
     if folder == "sent":
         sqlStatementBase = '''
-            SELECT toaddress, fromaddress, subject, message, status, ackdata, lastactiontime 
+            SELECT toaddress, fromaddress, subject, message, status, ackdata, lastactiontime
             FROM sent '''
     else:
         sqlStatementBase = '''SELECT folder, msgid, toaddress, message, fromaddress, subject, received, read

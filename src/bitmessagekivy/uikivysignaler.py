@@ -1,14 +1,15 @@
-
+"""Coding: utf-8 ."""
 from threading import Thread
 import state
 import queues
 from semaphores import kivyuisignaler
-from helper_sql import SqlBulkExecute, sqlExecute, sqlQuery, sqlStoredProcedure
 
 
 class UIkivySignaler(Thread):
+    """UI kivy Signaler Class."""
 
     def run(self):
+        """Run Signal Thread."""
         kivyuisignaler.acquire()
         while state.shutdown == 0:
             try:
