@@ -2,7 +2,9 @@
 from helper_sql import sqlQuery
 
 
-def search_sql(xAddress="toaddress", account=None, folder="inbox", where=None, what=None, unreadOnly=False):
+def search_sql(
+    xAddress="toaddress", account=None, folder="inbox",
+        where=None, what=None, unreadOnly=False):
     """Query for search Data."""
     if what is not None and what != "":
         what = "%" + what + "%"
