@@ -541,7 +541,6 @@ class Random(Screen):
 
     def generateaddress(self):
         """Function generates address."""
-        import queues
         streamNumberForAddress = 1
         label = self.ids.label.text
         eighteenByteRipe = False
@@ -816,17 +815,6 @@ class NavigateApp(App):
         kivyuisignaler.release()
         super(NavigateApp, self).run()
 
-    def show_address_success(self):
-        """Show Address Success."""
-        content = MDLabel(font_style='Body1',
-                          theme_text_color='Secondary',
-                          text="Successfully Saved your contact address. "
-                               "That's pretty awesome right!",
-                          size_hint_y=None,
-                          valign='top')
-        content.bind(texture_size=content.setter('size'))
-        self.dialog.open()
-
     @staticmethod
     def showmeaddresses(name="text"):
         """Show the addresses in spinner to make as dropdown."""
@@ -882,14 +870,6 @@ class NavigateApp(App):
             msg_counter_objs.trash_cnt.badge_text = state.trash_count
             msg_counter_objs.draft_cnt.badge_text = state.draft_count
 
-    def getInboxMessageDetail(self, instance):
-        """Get message detail after make selected message description."""
-        try:
-            self.root.ids._mngr.current = 'page'
-        except AttributeError:
-            self.parent.manager.current = 'page'
-        print('Message Clicked {}'.format(instance))
-
     @staticmethod
     def getCurrentAccount():
         """It uses to get current account label."""
@@ -917,10 +897,10 @@ class NavigateApp(App):
 
     def limit_spinner(self):
         """Limit Spinner."""
-        max = 2.8
+        maxx = 2.8
         spinner_obj = ContentNavigationDrawer().ids.btn
         spinner_obj.dropdown_cls.max_height = \
-            spinner_obj.height * max + max * 4
+            spinner_obj.height * maxx + maxx * 4
 
     def on_key(self, window, key, *args):
         """Method is used for going on previous screen."""
