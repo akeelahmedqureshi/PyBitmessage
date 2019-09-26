@@ -53,7 +53,7 @@ def lookupAppdataFolder():    # pylint: disable=too-many-branches
             if 'logger' in globals():
                 logger.critical(stringToLog)    # pylint: disable=undefined-variable
             else:
-                print stringToLog
+                print (stringToLog)
             sys.exit()
     elif platform == 'android':
         dataFolder = path.join(os.environ['ANDROID_PRIVATE'] + '/', APPNAME) + '/'
@@ -74,7 +74,7 @@ def lookupAppdataFolder():    # pylint: disable=too-many-branches
             if 'logger' in globals():
                 logger.info(stringToLog)    # pylint: disable=undefined-variable
             else:
-                print stringToLog
+                print (stringToLog)
         except IOError:
             # Old directory may not exist.
             pass
