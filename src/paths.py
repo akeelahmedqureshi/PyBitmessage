@@ -37,7 +37,7 @@ def lookupAppdataFolder():    # pylint: disable=too-many-branches
     """Folder with runtime data (like configuration, database, ...)"""
     # flake8: noqa=F821
     import traceback
-    print traceback.print_tb
+    print (traceback.print_tb)
     APPNAME = "PyBitmessage"
     if "BITMESSAGE_HOME" in environ:
         dataFolder = environ["BITMESSAGE_HOME"]
