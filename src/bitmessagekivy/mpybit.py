@@ -80,11 +80,16 @@ from kivymd.uix.bottomsheet import MDCustomBottomSheet
 from kivy.effects.dampedscroll import DampedScrollEffect
 from kivymd.uix.menu import MDDropdownMenu
 
-from kivy_garden.zbarcam import ZBarCam
-from pyzbar.pyzbar import ZBarSymbol
+from kivy.lang import Observable
+import gettext
+import l10n
+import locale
+from debug import logger
 
 if platform != "android":
     from kivy.config import Config
+    from kivy_garden.zbarcam import ZBarCam
+    from pyzbar.pyzbar import ZBarSymbol
 
     Config.set("input", "mouse", "mouse, multitouch_on_demand")
 elif platform == "android":
@@ -185,6 +190,44 @@ def chipTag(text):
     return obj
 
 
+class Lang(Observable):
+    observers = []
+    lang = None
+
+    def __init__(self, defaultlang):
+        super(Lang, self).__init__()
+        self.ugettext = None
+        self.lang = defaultlang
+        self.switch_lang(self.lang)
+
+    def _(self, text):
+        return self.ugettext(text)
+
+    def fbind(self, name, func, args, **kwargs):
+        if name == "_":
+            self.observers.append((func, args, kwargs))
+        else:
+            return super(Lang, self).fbind(name, func, *largs, **kwargs)
+
+    def funbind(self, name, func, args, **kwargs):
+        if name == "_":
+            key = (func, args, kwargs)
+            if key in self.observers:
+                self.observers.remove(key)
+        else:
+            return super(Lang, self).funbind(name, func, *args, **kwargs)
+
+    def switch_lang(self, lang):
+        # get the right locales directory, and instanciate a gettext
+        locale_dir = os.path.join(os.path.dirname(__file__), 'translations', 'mo', 'locales')
+        locales = gettext.translation('langapp', locale_dir, languages=[lang])
+        self.ugettext = locales.gettext
+
+        # update all the kv rules attached to this text
+        for func, largs, kwargs in self.observers:
+            func(largs, None, None)
+
+
 class Inbox(Screen):
     """Inbox Screen class for kivy Ui"""
 
@@ -264,8 +307,12 @@ class Inbox(Screen):
 
     def set_inboxCount(self, msgCnt):  # pylint: disable=no-self-use
         """This method is used to sent inbox message count"""
-        src_mng_obj = state.kivyapp.root.ids.content_drawer.ids.inbox_cnt
-        src_mng_obj.ids.badge_txt.text = showLimitedCnt(int(msgCnt))
+        src_mng_obj = state.kivyapp.root.ids.content_drawer.ids
+        src_mng_obj.inbox_cnt.ids.badge_txt.text = showLimitedCnt(int(msgCnt))
+        state.kivyapp.get_sent_count()
+        state.all_count = str(
+            int(state.sent_count) + int(state.inbox_count))
+        src_mng_obj.allmail_cnt.ids.badge_txt.text = showLimitedCnt(int(state.all_count))
 
     def inboxDataQuery(self, xAddress, where, what, start_indx=0, end_indx=20):
         """This method is used for retrieving inbox data"""
@@ -367,12 +414,14 @@ class Inbox(Screen):
             msg_count_objs.trash_cnt.ids.badge_txt.text = showLimitedCnt(
                 int(state.trash_count) + 1
             )
-            msg_count_objs.allmail_cnt.ids.badge_txt.text = showLimitedCnt(
-                int(state.all_count) - 1
-            )
             state.inbox_count = str(int(state.inbox_count) - 1)
             state.trash_count = str(int(state.trash_count) + 1)
-            state.all_count = str(int(state.all_count) - 1)
+            if int(state.all_count) > 0:
+                msg_count_objs.allmail_cnt.ids.badge_txt.text = showLimitedCnt(
+                    int(state.all_count) - 1
+                )
+                state.all_count = str(int(state.all_count) - 1)
+
             if int(state.inbox_count) <= 0:
                 # self.ids.identi_tag.children[0].text = ''
                 self.ids.tag_label.text = ''
@@ -483,16 +532,19 @@ class MyAddress(Screen):
             try:
                 meny.canvas.children[6].rgba = [0, 0, 0, 0] if is_enable == 'true' else [0.5, 0.5, 0.5, 0.5]
             except Exception:
-                meny.canvas.children[9].rgba = [0, 0, 0, 0] if is_enable == 'true' else [0.5, 0.5, 0.5, 0.5]
+                try:
+                    meny.canvas.children[9].rgba = [0, 0, 0, 0] if is_enable == 'true' else [0.5, 0.5, 0.5, 0.5]
+                except Exception as e:
+                    print('Exception: ', e)
             meny.add_widget(AvatarSampleWidget(
                 source=state.imageDir + '/text_images/{}.png'.format(
                     avatarImageFirstLetter(item['text'].strip()))))
             meny.bind(on_press=partial(
                 self.myadd_detail, item['secondary_text'], item['text']))
-            if state.association == item['secondary_text']:
+            if state.association == item['secondary_text'] and is_enable == 'true':
                 badge_obj = BadgeText(
                     size_hint=(None, None),
-                    size=[85 if platform == 'android' else 50, 60],
+                    size=[90 if platform == 'android' else 50, 60],
                     text='Active', halign='center',
                     font_style='Body1', theme_text_color='Custom',
                     text_color=ThemeClsColor
@@ -544,7 +596,8 @@ class MyAddress(Screen):
                     MDFlatButton(
                         text="Ok", on_release=lambda x: callback_for_menu_items("Ok")
                     ),
-                ],)
+                ],
+            )
             dialog_box.open()
 
         def callback_for_menu_items(text_item, *arg):
@@ -570,6 +623,7 @@ class MyAddress(Screen):
             self.init_ui()
             self.ids.refresh_layout.refresh_done()
             self.tick = 0
+            Clock.schedule_once(self.address_permision_callback, 0)
         Clock.schedule_once(refresh_callback, 1)
 
     @staticmethod
@@ -928,6 +982,9 @@ class DropDownWidget(BoxLayout):
                         state.detailPageType = ''
                         state.send_draft_mail = None
                     self.parent.parent.parent.ids.sc4.update_sent_messagelist()
+                    allmailCnt_obj = state.kivyapp.root.ids.content_drawer.ids.allmail_cnt
+                    allmailCnt_obj.ids.badge_txt.text = showLimitedCnt(int(state.all_count) + 1)
+                    state.all_count = str(int(state.all_count) + 1)
                     Clock.schedule_once(self.callback_for_msgsend, 3)
                     queues.workerQueue.put(('sendmessage', toAddress))
                     print("sqlExecute successfully #######################")
@@ -981,12 +1038,60 @@ class DropDownWidget(BoxLayout):
         self.ids.ti.text = self.ids.btn.text
         self.ids.ti.focus = True
 
-    def qrScanner(self):
-        """This method is used for scanning Qr code"""
+    def is_camara_attached(self):
+        self.parent.parent.parent.ids.sc23.check_camera()
+        is_available = self.parent.parent.parent.ids.sc23.camera_avaialbe
+        return is_available
+
+    def camera_alert(self):
+        width = .8 if platform == 'android' else .55
+        altet_txt = 'Currently this feature is not avaialbe!'if platform == 'android' else 'Camera is not available!'
+        dialog_box = MDDialog(
+            text=altet_txt,
+            size_hint=(width, .25),
+            buttons=[
+                MDFlatButton(
+                    text="Ok", on_release=lambda x: callback_for_menu_items("Ok")
+                ),
+            ],
+        )
+        dialog_box.open()
+
+        def callback_for_menu_items(text_item, *arg):
+            """Callback of alert box"""
+            dialog_box.dismiss()
+            toast(text_item)
 
 
 class ScanScreen(Screen):
-    """DropDownWidget class for kivy Ui"""
+    camera_avaialbe = BooleanProperty(False)
+    previous_open_screen = StringProperty()
+    pop_up_instance = ObjectProperty()
+
+    def __init__(self, *args, **kwargs):
+        """Getting AddressBook Details"""
+        super(ScanScreen, self).__init__(*args, **kwargs)
+        self.check_camera()
+
+    def check_camera(self):
+        """This method is used for checking camera avaibility"""
+        if platform != "android":
+            import cv2
+            cap = cv2.VideoCapture(0)
+            while(cap.isOpened()):
+                print('Camera is available!')
+                self.camera_avaialbe = True
+                break
+            else:
+                print("Camera is not available!")
+                self.camera_avaialbe = False
+
+    def get_screen(self, screen_name, instance=None):
+        """This method is used for getting previous screen name"""
+        self.previous_open_screen = screen_name
+        if screen_name != 'composer':
+            self.pop_up_instance = instance
+
     def on_pre_enter(self):
         """
        on_pre_enter works little better on android
@@ -1012,7 +1117,6 @@ class ScanScreen(Screen):
 
     def on_leave(self):
         # pass
-
         Clock.schedule_once(self.stop_camera, 0)
 
     def start_camera(self, *args):
@@ -1682,6 +1786,7 @@ class Create(Screen):
     def __init__(self, **kwargs):
         """Getting Labels and address from addressbook"""
         super(Create, self).__init__(**kwargs)
+        Window.softinput_mode = "below_target"
         widget_1 = DropDownWidget()
         widget_1.ids.txt_input.word_list = [
             addr[1] for addr in sqlQuery(
@@ -1704,23 +1809,67 @@ class Setting(Screen):
                 Here you may change that behavior by having Bitmessage give up after a certain number of days \
                 or months."
 
+    languages = {
+        'ar': 'Arabic',
+        'cs': 'Czech',
+        'da': 'Danish',
+        'de': 'German',
+        'en': 'English',
+        'eo': 'Esperanto',
+        'fr': 'French',
+        'it': 'Italian',
+        'ja': 'Japanese',
+        'nl': 'Dutch',
+        'no': 'Norwegian',
+        'pl': 'Polish',
+        'pt': 'Portuguese',
+        'ru': 'Russian',
+        'sk': 'Slovak',
+        'zh': 'Chinese',
+    }
+    newlocale = None
+
     def __init__(self, *args, **kwargs):
         """Trash method, delete sent message and add in Trash"""
         super(Setting, self).__init__(*args, **kwargs)
+        if self.newlocale is None:
+            self.newlocale = l10n.getTranslationLanguage()
+        lang = locale.normalize(l10n.getTranslationLanguage())
+        langs = [
+            lang.split(".")[0] + "." + l10n.encoding,
+            lang.split(".")[0] + "." + 'UTF-8',
+            lang
+        ]
+        if 'win32' in platform or 'win64' in platform:
+            langs = [l10n.getWindowsLocale(lang)]
+        for lang in langs:
+            try:
+                l10n.setlocale(locale.LC_ALL, lang)
+                if 'win32' not in platform and 'win64' not in platform:
+                    l10n.encoding = locale.nl_langinfo(locale.CODESET)
+                else:
+                    l10n.encoding = locale.getlocale()[1]
+                logger.info("Successfully set locale to %s", lang)
+                break
+            except:
+                logger.error("Failed to set locale to %s", lang, exc_info=True)
+
         Clock.schedule_once(self.init_ui, 0)
 
     def init_ui(self, dt=0):
         """Initialization for Ui"""
-        menu_items = [{"text": f"{i}"} for i in ['System Setting', 'U.S. English', 'italiano',
-                                                 'Esperanto', 'dansk', 'Deutsch', 'Pirate English', 'francais',
-                                                 'Nederlands', 'norsk bokmal', 'polski', 'portugues europeu']]
+        if self.newlocale is None:
+            self.newlocale = l10n.getTranslationLanguage()
+        # state.kivyapp.tr = Lang(self.newlocale)
+        state.kivyapp.tr = Lang(self.newlocale)
+        menu_items = [{"text": f"{i}"} for i in self.languages.values()]
         self.menu = MDDropdownMenu(
             caller=self,
             items=menu_items,
             position="auto",
             callback=self.set_item,
-            width_mult=3,
-            use_icon_item=False,
+            width_mult=3.5,
+            # use_icon_item=False,
         )
 
     def set_caller(self):
@@ -1732,6 +1881,21 @@ class Setting(Screen):
         """set_item module for menu selection"""
         self.ids.drop_item.set_item(instance.text)
         self.menu.dismiss()
+
+    def change_language(self):
+        lang = self.ids.drop_item.current_item
+        for k, v in self.languages.items():
+            if v == lang:
+                BMConfigParser().set('bitmessagesettings', 'userlocale', k)
+                BMConfigParser().save()
+                state.kivyapp.tr = Lang(k)
+                self.children[0].active = True
+                Clock.schedule_once(partial(self.language_callback, k), 1)
+
+    def language_callback(self, lang, dt=0):
+        self.children[0].active = False
+        state.kivyapp.tr = Lang(lang)
+        toast('Language changed')
 
 
 class NavigateApp(MDApp):
@@ -1754,6 +1918,7 @@ class NavigateApp(MDApp):
     file_manager = None
     state.imageDir = os.path.join('./images', 'kivy')
     image_path = state.imageDir
+    tr = Lang("en")  # for changing in franch replace en with fr
 
     def build(self):
         """Method builds the widget"""
@@ -1787,22 +1952,25 @@ class NavigateApp(MDApp):
 
     def getCurrentAccountData(self, text):
         """Get Current Address Account Data"""
-        if os.path.exists(state.imageDir + '/default_identicon/{}.png'.format(text)):
-            self.load_selected_Image(text)
-        else:
-            self.set_identicon(text)
-        address_label = self.current_address_label(
-            BMConfigParser().get(text, 'label'), text)
-        self.root_window.children[1].ids.toolbar.title = address_label
-        state.association = text
-        state.searcing_text = ''
-        LoadingPopup().open()
-        self.set_message_count()
-        for nav_obj in self.root.ids.content_drawer.children[
-                0].children[0].children[0].children:
-            nav_obj.active = True if nav_obj.text == 'Inbox' else False
-        self.fileManagerSetting()
-        Clock.schedule_once(self.setCurrentAccountData, 0.5)
+        if text != '':
+            if os.path.exists(state.imageDir + '/default_identicon/{}.png'.format(text)):
+                self.load_selected_Image(text)
+            else:
+                self.set_identicon(text)
+                self.root.ids.content_drawer.ids.reset_image.opacity = 0
+                self.root.ids.content_drawer.ids.reset_image.disabled = True
+            address_label = self.current_address_label(
+                BMConfigParser().get(text, 'label'), text)
+            self.root_window.children[1].ids.toolbar.title = address_label
+            state.association = text
+            state.searcing_text = ''
+            LoadingPopup().open()
+            self.set_message_count()
+            for nav_obj in self.root.ids.content_drawer.children[
+                    0].children[0].children[0].children:
+                nav_obj.active = True if nav_obj.text == 'Inbox' else False
+            self.fileManagerSetting()
+            Clock.schedule_once(self.setCurrentAccountData, 0.5)
 
     def fileManagerSetting(self):
         """This method is for file manager setting"""
@@ -1861,7 +2029,8 @@ class NavigateApp(MDApp):
                     on_release=self.close_pop,
                 ),
                 MDRaisedButton(
-                    text="Scan QR code", text_color=self.theme_cls.primary_color
+                    text="Scan QR code", text_color=self.theme_cls.primary_color,
+                    on_release=self.scan_qr_code,
                 ),
             ],
         )
@@ -1870,6 +2039,24 @@ class NavigateApp(MDApp):
         self.add_popup.open()
         # p = GrashofPopup()
         # p.open()
+
+    def scan_qr_code(self, instance):
+        """this method is used for showing QR code scanner"""
+        if self.is_camara_attached():
+            self.add_popup.dismiss()
+            self.root.ids.sc23.get_screen(self.root.ids.scr_mngr.current, self.add_popup)
+            self.root.ids.scr_mngr.current = 'scanscreen'
+        else:
+            altet_txt = (
+                'Currently this feature is not avaialbe!' if platform == 'android' else 'Camera is not available!')
+            self.add_popup.dismiss()
+            toast(altet_txt)
+
+    def is_camara_attached(self):
+        """This method is for checking is camera available or not"""
+        self.root.ids.sc23.check_camera()
+        is_available = self.root.ids.sc23.camera_avaialbe
+        return is_available
 
     def savecontact(self, instance):
         """Method is used for saving contacts"""
@@ -1883,6 +2070,9 @@ class NavigateApp(MDApp):
             pupup_obj.ids.address.focus = True
         elif label == '':
             pupup_obj.ids.label.focus = True
+        else:
+            pupup_obj.ids.address.focus = True
+            # pupup_obj.ids.label.focus = True
 
         stored_address = [addr[1] for addr in kivy_helper_search.search_sql(
             folder="addressbook")]
@@ -1904,26 +2094,30 @@ class NavigateApp(MDApp):
         self.add_popup.dismiss()
         toast('Canceled')
 
-    def getDefaultAccData(self):
+    def getDefaultAccData(self, instance):
         """Getting Default Account Data"""
         if BMConfigParser().addresses():
-            img = identiconGeneration.generate(BMConfigParser().addresses()[0])
-            self.createFolder(state.imageDir + '/default_identicon/')
-            if platform == 'android':
-                # android_path = os.path.expanduser
-                # ("~/user/0/org.test.bitapp/files/app/")
-                if not os.path.exists(state.imageDir + '/default_identicon/{}.png'.format(
-                        BMConfigParser().addresses()[0])):
-                    android_path = os.path.join(
-                        os.environ['ANDROID_PRIVATE'] + '/app/')
-                    img.texture.save('{1}/images/kivy/default_identicon/{0}.png'.format(
-                        BMConfigParser().addresses()[0], android_path))
-            else:
-                if not os.path.exists(state.imageDir + '/default_identicon/{}.png'.format(
-                        BMConfigParser().addresses()[0])):
-                    img.texture.save(state.imageDir + '/default_identicon/{}.png'.format(
-                        BMConfigParser().addresses()[0]))
-            return BMConfigParser().addresses()[0]
+            first_addr = BMConfigParser().addresses()[0]
+            if BMConfigParser().get(str(first_addr), 'enabled') == 'true':
+                img = identiconGeneration.generate(first_addr)
+                # self.createFolder(state.imageDir + '/default_identicon/')
+                # if platform == 'android':
+                #     # android_path = os.path.expanduser
+                #     # ("~/user/0/org.test.bitapp/files/app/")
+                #     if not os.path.exists(state.imageDir + '/default_identicon/{}.png'.format(
+                #             BMConfigParser().addresses()[0])):
+                #         android_path = os.path.join(
+                #             os.environ['ANDROID_PRIVATE'] + '/app/')
+                #         img.texture.save('{1}/images/kivy/default_identicon/{0}.png'.format(
+                #             BMConfigParser().addresses()[0], android_path))
+                # else:
+                #     if not os.path.exists(state.imageDir + '/default_identicon/{}.png'.format(
+                #             BMConfigParser().addresses()[0])):
+                #         img.texture.save(state.imageDir + '/default_identicon/{}.png'.format(
+                #             BMConfigParser().addresses()[0]))
+                instance.parent.parent.parent.parent.parent.ids.top_box.children[0].texture = (
+                    img.texture)
+                return first_addr
         return 'Select Address'
 
     @staticmethod
@@ -1947,8 +2141,10 @@ class NavigateApp(MDApp):
     def get_default_logo():
         """Getting default logo image"""
         if BMConfigParser().addresses():
-            return state.imageDir + '/default_identicon/{}.png'.format(
-                BMConfigParser().addresses()[0])
+            first_addr = BMConfigParser().addresses()[0]
+            if BMConfigParser().get(str(first_addr), 'enabled') == 'true':
+                return state.imageDir + '/default_identicon/{}.png'.format(
+                    first_addr)
         return state.imageDir + '/drawer_logo1.png'
 
     @staticmethod
@@ -2202,6 +2398,8 @@ class NavigateApp(MDApp):
             else:
                 addr = BMConfigParser().addresses()[0]
                 first_name = BMConfigParser().get(addr, 'label')
+                if BMConfigParser().get(addr, 'enabled') != 'true':
+                    return ''
             f_name = first_name.split()
             label = f_name[0][:14].capitalize() + '...' if len(
                 f_name[0]) > 15 else f_name[0].capitalize()
@@ -2397,8 +2595,23 @@ class NavigateApp(MDApp):
         # spinner_img_obj = self.root.ids.content_drawer.ids.btn.children[1]
         # spinner_img_obj.source = top_box_obj.source ='./images/default_identicon/{0}.png'.format(curerentAddr)
         top_box_obj.source = state.imageDir + '/default_identicon/{0}.png'.format(curerentAddr)
+        self.root.ids.content_drawer.ids.reset_image.opacity = 1
+        self.root.ids.content_drawer.ids.reset_image.disabled = False
         top_box_obj.reload()
         # spinner_img_obj.reload()
+
+    def rest_default_avatar_img(self):
+        """set default avatar generated image"""
+        self.set_identicon(state.association)
+        img_path = state.imageDir + '/default_identicon/{}.png'.format(state.association)
+        try:
+            if os.path.exists(img_path):
+                os.remove(img_path)
+                self.root.ids.content_drawer.ids.reset_image.opacity = 0
+                self.root.ids.content_drawer.ids.reset_image.disabled = True
+        except Exception as e:
+            pass
+        toast('Avatar reset')
 
     def copy_composer_text(self, text):  # pylint: disable=no-self-use
         """Copy the data from mail detail page"""
@@ -2425,9 +2638,19 @@ class NavigateApp(MDApp):
         if platform == 'android':
             text = cast(CharSequence, String(text))
             show_toast(text, Toast.LENGTH_SHORT)
-        else:
+        elif self.root.ids.sc23.previous_open_screen == 'composer':
             self.root.ids.sc3.children[1].ids.txt_input.text = text
             self.root.ids.scr_mngr.current = 'create'
+        elif self.root.ids.sc23.previous_open_screen:
+            back_screen = self.root.ids.sc23.previous_open_screen
+            self.root.ids.scr_mngr.current = 'inbox' if back_screen == 'scanscreen' else back_screen
+            add_obj = self.root.ids.sc23.pop_up_instance
+            add_obj.content_cls.ids.address.text = text
+            Clock.schedule_once(partial(self.open_popup, add_obj), .5)
+
+    def open_popup(self, instance, dt):
+        """This method is used for opening popup"""
+        instance.open()
 
 
 class GrashofPopup(BoxLayout):
@@ -2965,6 +3188,8 @@ class CustomSpinner(Spinner):
         """Method used for setting size of spinner"""
         super(CustomSpinner, self).__init__(*args, **kwargs)
         self.dropdown_cls.max_height = Window.size[1] / 3
+        self.values = list(addr for addr in BMConfigParser().addresses()
+                           if BMConfigParser().get(str(addr), 'enabled') == 'true')
 
 
 class Allmails(Screen):
@@ -3123,10 +3348,11 @@ class Allmails(Screen):
             state.sent_count = str(int(state.sent_count) - 1)
             nav_lay_obj.sc4.ids.ml.clear_widgets()
             nav_lay_obj.sc4.loadSent(state.association)
+        if folder != 'inbox':
+            msg_count_objs.allmail_cnt.ids.badge_txt.text = showLimitedCnt(int(state.all_count) - 1)
+            state.all_count = str(int(state.all_count) - 1)
         msg_count_objs.trash_cnt.ids.badge_txt.text = showLimitedCnt(int(state.trash_count) + 1)
-        msg_count_objs.allmail_cnt.ids.badge_txt.text = showLimitedCnt(int(state.all_count) - 1)
         state.trash_count = str(int(state.trash_count) + 1)
-        state.all_count = str(int(state.all_count) - 1)
         if int(state.all_count) <= 0:
             self.ids.tag_label.text = ''
         nav_lay_obj.sc5.clear_widgets()
