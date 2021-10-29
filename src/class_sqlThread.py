@@ -35,7 +35,9 @@ class sqlThread(threading.Thread):
 
     def run(self):  # pylint: disable=too-many-locals, too-many-branches, too-many-statements
         """Process SQL queries from `.helper_sql.sqlSubmitQueue`"""
+        print("line no 38 in class_Sqlthread......................................",helper_sql.sql_available)
         helper_sql.sql_available = True
+        print("run call in class_Sqlthread.py..................................",helper_sql.sql_available)
         self.conn = sqlite3.connect(state.appdata + 'messages.dat')
         self.conn.text_factory = str
         self.cur = self.conn.cursor()

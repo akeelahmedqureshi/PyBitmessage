@@ -1,8 +1,8 @@
 """The Inventory singleton"""
 
 # TODO make this dynamic, and watch out for frozen, like with messagetypes
-import storage.filesystem
-import storage.sqlite
+import pybitmessage.storage.filesystem
+import pybitmessage.storage.sqlite
 from bmconfigparser import BMConfigParser
 from singleton import Singleton
 
@@ -16,7 +16,7 @@ class Inventory():
     def __init__(self):
         self._moduleName = BMConfigParser().safeGet("inventory", "storage")
         self._inventoryClass = getattr(
-            getattr(storage, self._moduleName),
+            getattr(pybitmessage.storage, self._moduleName),
             "{}Inventory".format(self._moduleName.title())
         )
         self._realInventory = self._inventoryClass()

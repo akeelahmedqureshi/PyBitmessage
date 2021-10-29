@@ -1,6 +1,7 @@
 """This module is for thread start."""
 import state
 import sys
+import pdb;pdb.set_trace()
 from bitmessagemain import main
 from termcolor import colored
 print(colored('kivy is not supported at the moment for this version..', 'red'))

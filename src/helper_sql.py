@@ -28,7 +28,9 @@ sqlReturnQueue = queue.Queue()
 sql_lock = threading.Lock()
 """ lock to prevent queueing a new request until the previous response
     is available """
+print("31...............................................................................before sql_available")
 sql_available = False
+print("33................................................................................sql_available",sql_available)
 """set to True by `.threads.sqlThread` immediately upon start"""
 sql_ready = threading.Event()
 """set by `.threads.sqlThread` when ready for processing (after
@@ -43,7 +45,11 @@ def sqlQuery(sql_statement, *args):
     :param list args: SQL query parameters
     :rtype: list
     """
+    print('before asser throw............................................................................',sql_available)
+    print("sql_statementsql_statementsql_statementsql_statement before",sql_statement)
     assert sql_available
+    print('after asser throw............................................................................',sql_available)
+    print("sql_statementsql_statementsql_statementsql_statementsql_statementsql_statement after",sql_statement)
     sql_lock.acquire()
     sqlSubmitQueue.put(sql_statement)
 

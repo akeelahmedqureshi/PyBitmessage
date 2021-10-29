@@ -5,8 +5,8 @@ import sqlite3
 import time
 from threading import RLock
 
-from helper_sql import SqlBulkExecute, sqlExecute, sqlQuery
-from storage import InventoryItem, InventoryStorage
+from pybitmessage.helper_sql import SqlBulkExecute, sqlExecute, sqlQuery, sql_ready
+from pybitmessage.storage.storage import InventoryItem, InventoryStorage
 
 
 class SqliteInventory(InventoryStorage):  # pylint: disable=too-many-ancestors
@@ -90,6 +90,11 @@ class SqliteInventory(InventoryStorage):  # pylint: disable=too-many-ancestors
             return values
 
     def unexpired_hashes_by_stream(self, stream):
+        # sql_ready.wait()
+        from threading import current_thread
+        print(current_thread().name,"Thread running....................................................")
+
+
         """Return unexpired inventory vectors filtered by stream"""
         with self.lock:
             t = int(time.time())

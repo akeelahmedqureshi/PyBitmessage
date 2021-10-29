@@ -8,8 +8,8 @@ from binascii import hexlify, unhexlify
 from os import listdir, makedirs, path, remove, rmdir
 from threading import RLock
 
-from paths import lookupAppdataFolder
-from storage import InventoryItem, InventoryStorage
+from pybitmessage.paths import lookupAppdataFolder
+from pybitmessage.storage.storage import InventoryItem, InventoryStorage
 
 logger = logging.getLogger('default')
 
@@ -239,7 +239,7 @@ class FilesystemInventory(InventoryStorage):
 
     def hashes_by_stream(self, stream):
         """Return inventory vectors (hashes) for a stream"""
-        try:
+        try:    
             return self._inventory[stream].keys()
         except KeyError:
             return []
@@ -264,6 +264,7 @@ class FilesystemInventory(InventoryStorage):
         for streamDict in self._inventory.values():
             for hashId, item in streamDict.items():
                 if item.expires < minTime:
-                    deletes.append(hashId)
+                     deletes.append(hashId)
         for hashId in deletes:
             self.delHashId(hashId)
+  

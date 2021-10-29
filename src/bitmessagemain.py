@@ -30,6 +30,7 @@ import time
 import traceback
 
 import defaults
+import helper_sql
 import shared
 import shutdown
 import state
@@ -85,6 +86,7 @@ def signal_handler(signum, frame):
 class Main(object):
     """Main PyBitmessage class"""
     def start(self):
+        import pdb;pdb.set_trace()
         """Start main application"""
         # pylint: disable=too-many-statements,too-many-branches,too-many-locals
         fixSocket()
@@ -197,8 +199,12 @@ class Main(object):
         # The closeEvent should command this thread to exit gracefully.
         sqlLookup.daemon = False
         sqlLookup.start()
+        print("Thread Started........................................... 200 in bitmessagemain.py")
+        helper_sql.sql_ready.wait()
 
         Inventory()  # init
+        print("thread after inventory 204..................................",helper_sql.sql_available)
+
         # init, needs to be early because other thread may access it early
         Dandelion()
 
